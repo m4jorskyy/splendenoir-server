@@ -67,7 +67,7 @@ func (s *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		request.Login, request.Password)
 
 	if errRegister != nil {
-		http.Error(w, fmt.Sprintf("Error registering: %s", errRegister), http.StatusInternalServerError)
+		http.Error(w, "Error registering", http.StatusInternalServerError)
 		return
 	}
 
