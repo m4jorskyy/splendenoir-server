@@ -34,7 +34,7 @@ func TestUserHandler_RegisterUser(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
 	mockRepo := &MockUserRepository{}
-	svc := service.NewUserService("secret", mockRepo)
+	svc := services.NewUserService("secret", mockRepo)
 	handler := NewUserHandler("secret", svc)
 	handler.RegisterUser(recorder, request)
 
@@ -48,7 +48,7 @@ func TestUserHandler_LoginUser(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	mockRepo := &MockUserRepository{}
-	svc := service.NewUserService("secret", mockRepo)
+	svc := services.NewUserService("secret", mockRepo)
 
 	handler := NewUserHandler("secret", svc)
 	handler.LoginUser(recorder, request)

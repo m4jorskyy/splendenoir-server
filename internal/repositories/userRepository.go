@@ -28,13 +28,13 @@ func (r *UserRepository) RegisterUser(profile *user.UserProfile, creds *user.Use
 
 	var returnedID int64
 
-	errReturnID := tx.QueryRow("INSERT INTO user_profile (first_name, last_name, email) VALUES ($1, $2, $3) RETURNING user_profile.id", profile.FirstName, profile.LastName, profile.Email).Scan(&returnedID)
+	errReturnID := tx.QueryRow("INSERT INTO user_profiles (first_name, last_name, email) VALUES ($1, $2, $3) RETURNING user_profile.id", profile.FirstName, profile.LastName, profile.Email).Scan(&returnedID)
 
 	if errReturnID != nil {
 		return 0, errReturnID
 	}
 
-	_, errExec := tx.Exec("INSERT INTO user_credential (username, password_hash, profile_id) VALUES ($1, $2, $3)", creds.Username, creds.PasswordHash, returnedID)
+	_, errExec := tx.Exec("INSERT INTO user_credentials (username, password_hash, profile_id) VALUES ($1, $2, $3)", creds.Username, creds.PasswordHash, returnedID)
 
 	if errExec != nil {
 		return 0, errExec
@@ -53,7 +53,7 @@ func (r *UserRepository) LoginUser(username string) (int64, string, string, erro
 	var returnedPasswordHash string
 	var returnedFirstName string
 
-	errReturned := r.db.QueryRow("SELECT user_credential.profile_id, user_credential.password_hash, user_profile.first_name FROM user_credential, user_profile WHERE username = $1 AND user_credential.profile_id = user_profile.id", username).Scan(&returnedID, &returnedPasswordHash, &returnedFirstName)
+	errReturned := r.db.QueryRow("SELECT user_credentials.profile_id, user_credentials.password_hash, user_profiles.first_name FROM user_credentials, user_profiles WHERE username = $1 AND user_credentials.profile_id = user_profiles.id", username).Scan(&returnedID, &returnedPasswordHash, &returnedFirstName)
 
 	if errReturned != nil {
 		return 0, "", "", errReturned
