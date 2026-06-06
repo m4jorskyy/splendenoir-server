@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"database/sql"
+	"errors"
 	"splendenoir-server/internal/models/product"
 )
 
@@ -45,4 +46,20 @@ func (r *ProductRepository) GetAllProducts() ([]*product.Product, error) {
 	}
 
 	return products, nil
+}
+
+func (r *ProductRepository) GetProductByID(id int64) (*product.Product, error) {
+	p := &product.Product{}
+	errProduct := r.db.QueryRow("SELECT id, name, material, fineness, length, width, price, quantity FROM products WHERE id = $1 AND deleted_at IS NULL", id).Scan(&p.ID, &p.Name, &p.Material, &p.Fineness, &p.Length, &p.Width, &p.Price, &p.Quantity)
+
+	if errProduct != nil {
+
+		if errors.Is(errProduct, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+
+		return nil, errProduct
+	}
+
+	return p, nil
 }
