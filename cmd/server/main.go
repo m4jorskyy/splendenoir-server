@@ -50,8 +50,15 @@ func main() {
 	userSvc := services.NewUserService(os.Getenv("JWT_SECRET"), userRepo)
 	userHandler := handlers.NewUserHandler(os.Getenv("JWT_SECRET"), userSvc)
 
+	productRepo := repositories.NewProductRepository(db)
+	productSvc := services.NewProductService(productRepo)
+	productHandler := handlers.NewProductHandler(productSvc)
+
 	mux.HandleFunc("POST /api/register/", userHandler.RegisterUser)
 	mux.HandleFunc("POST /api/login/", userHandler.LoginUser)
+
+	mux.HandleFunc("GET /api/products/", productHandler.GetAllProducts)
+	mux.HandleFunc("GET /api/products/{id}", productHandler.GetProductByID)
 
 	srv := &http.Server{
 		Addr:    ":" + os.Getenv("SERVER_PORT"),
