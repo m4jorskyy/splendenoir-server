@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"splendenoir-server/internal/models/data"
+	"splendenoir-server/internal/models/data/user"
 	"splendenoir-server/internal/services"
 	"time"
 )
@@ -54,7 +54,7 @@ func (s *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request data.RegisterRequest
+	var request user.RegisterRequest
 	decoder := json.NewDecoder(r.Body)
 	errDecode := decoder.Decode(&request)
 
@@ -89,7 +89,7 @@ func (s *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request data.LoginRequest
+	var request user.LoginRequest
 	decoder := json.NewDecoder(r.Body)
 	errDecode := decoder.Decode(&request)
 

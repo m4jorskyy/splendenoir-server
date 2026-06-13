@@ -1,4 +1,4 @@
-package data
+package user
 
 type RegisterRequest struct {
 	FirstName string `json:"first_name"`
