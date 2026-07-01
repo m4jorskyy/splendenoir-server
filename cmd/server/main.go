@@ -15,6 +15,7 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -45,6 +46,26 @@ func main() {
 		panic(errPing)
 	}
 
+	var ctx = context.Background()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_URL"),
+		Password: "",
+		DB:       0,
+	})
+
+	defer func(rdb *redis.Client) {
+		errRdb := rdb.Close()
+		if errRdb != nil {
+			panic(errRdb)
+		}
+	}(rdb)
+
+	errRdbPing := rdb.Ping(ctx).Err()
+	if errRdbPing != nil {
+		panic(errRdbPing)
+	}
+
 	mux := http.NewServeMux()
 	userRepo := repositories.NewUserRepository(db)
 	userSvc := services.NewUserService(os.Getenv("JWT_SECRET"), userRepo)
@@ -54,11 +75,19 @@ func main() {
 	productSvc := services.NewProductService(productRepo)
 	productHandler := handlers.NewProductHandler(productSvc)
 
+	cartRepo := repositories.NewCartRepository(rdb)
+	cartSvc := services.NewCartService(cartRepo)
+	cartHandler := handlers.NewCartHandler(cartSvc)
+
 	mux.HandleFunc("POST /api/register/", userHandler.RegisterUser)
 	mux.HandleFunc("POST /api/login/", userHandler.LoginUser)
 
 	mux.HandleFunc("GET /api/products/", productHandler.GetAllProducts)
 	mux.HandleFunc("GET /api/products/{id}", productHandler.GetProductByID)
+
+	mux.Handle("POST /api/cart/add/", userHandler.AuthMiddleware(cartHandler.AddToCart))
+	mux.Handle("POST /api/cart/remove/", userHandler.AuthMiddleware(cartHandler.RemoveFromCart))
+	mux.Handle("GET /api/cart/", userHandler.AuthMiddleware(cartHandler.GetCart))
 
 	srv := &http.Server{
 		Addr:    ":" + os.Getenv("SERVER_PORT"),
