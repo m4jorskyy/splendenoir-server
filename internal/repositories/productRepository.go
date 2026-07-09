@@ -3,7 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"errors"
-	"splendenoir-server/internal/models/product"
+	"splendenoir-server/internal/models/data"
 )
 
 type ProductRepository struct {
@@ -14,8 +14,8 @@ func NewProductRepository(db *sql.DB) *ProductRepository {
 	return &ProductRepository{db: db}
 }
 
-func (r *ProductRepository) GetAllProducts() ([]*product.Product, error) {
-	var products []*product.Product
+func (r *ProductRepository) GetAllProducts() ([]*data.Product, error) {
+	var products []*data.Product
 	rows, rowsErr := r.db.Query("SELECT id, name, material, fineness, length, width, price, quantity FROM products WHERE deleted_at IS NULL")
 
 	if rowsErr != nil {
@@ -30,7 +30,7 @@ func (r *ProductRepository) GetAllProducts() ([]*product.Product, error) {
 	}(rows)
 
 	for rows.Next() {
-		p := &product.Product{}
+		p := &data.Product{}
 
 		errScan := rows.Scan(&p.ID, &p.Name, &p.Material, &p.Fineness, &p.Length, &p.Width, &p.Price, &p.Quantity)
 
@@ -48,8 +48,8 @@ func (r *ProductRepository) GetAllProducts() ([]*product.Product, error) {
 	return products, nil
 }
 
-func (r *ProductRepository) GetProductByID(id int64) (*product.Product, error) {
-	p := &product.Product{}
+func (r *ProductRepository) GetProductByID(id int64) (*data.Product, error) {
+	p := &data.Product{}
 	errProduct := r.db.QueryRow("SELECT id, name, material, fineness, length, width, price, quantity FROM products WHERE id = $1 AND deleted_at IS NULL", id).Scan(&p.ID, &p.Name, &p.Material, &p.Fineness, &p.Length, &p.Width, &p.Price, &p.Quantity)
 
 	if errProduct != nil {

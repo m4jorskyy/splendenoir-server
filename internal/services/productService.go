@@ -2,13 +2,13 @@ package services
 
 import (
 	"errors"
-	"splendenoir-server/internal/models/product"
+	"splendenoir-server/internal/models/data"
 )
 
 type ProductRepository interface {
-	GetAllProducts() ([]*product.Product, error)
+	GetAllProducts() ([]*data.Product, error)
 
-	GetProductByID(id int64) (*product.Product, error)
+	GetProductByID(id int64) (*data.Product, error)
 }
 
 type ProductService struct {
@@ -19,7 +19,7 @@ func NewProductService(repo ProductRepository) *ProductService {
 	return &ProductService{repository: repo}
 }
 
-func (r *ProductService) GetAllProducts() ([]*product.Product, error) {
+func (r *ProductService) GetAllProducts() ([]*data.Product, error) {
 	products, productsErr := r.repository.GetAllProducts()
 
 	if productsErr != nil {
@@ -29,7 +29,7 @@ func (r *ProductService) GetAllProducts() ([]*product.Product, error) {
 	return products, nil
 }
 
-func (r *ProductService) GetProductByID(id int64) (*product.Product, error) {
+func (r *ProductService) GetProductByID(id int64) (*data.Product, error) {
 	if id <= 0 {
 		return nil, errors.New("Invalid ID")
 	}

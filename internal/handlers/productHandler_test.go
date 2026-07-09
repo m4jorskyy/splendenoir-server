@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 	"net/http/httptest"
-	"splendenoir-server/internal/models/product"
+	"splendenoir-server/internal/models/data"
 	"splendenoir-server/internal/services"
 	"strings"
 	"testing"
@@ -11,17 +11,17 @@ import (
 
 type MockProductRepository struct{}
 
-func (m *MockProductRepository) GetAllProducts() ([]*product.Product, error) {
-	p := &product.Product{ID: 1, Name: "Test Product", Material: "Silver", Fineness: "925", Length: 10, Width: 10, Price: 1000, Quantity: 10}
+func (m *MockProductRepository) GetAllProducts() ([]*data.Product, error) {
+	p := &data.Product{ID: 1, Name: "Test Product", Material: "Silver", Fineness: "925", Length: 10, Width: 10, Price: 1000, Quantity: 10}
 
-	products := make([]*product.Product, 0)
+	products := make([]*data.Product, 0)
 	products = append(products, p)
 
 	return products, nil
 }
 
-func (m *MockProductRepository) GetProductByID(ID int64) (*product.Product, error) {
-	p := &product.Product{ID: 1, Name: "Test Product", Material: "Silver", Fineness: "925", Length: 10, Width: 10, Price: 1000, Quantity: 10}
+func (m *MockProductRepository) GetProductByID(ID int64) (*data.Product, error) {
+	p := &data.Product{ID: 1, Name: "Test Product", Material: "Silver", Fineness: "925", Length: 10, Width: 10, Price: 1000, Quantity: 10}
 
 	return p, nil
 }
