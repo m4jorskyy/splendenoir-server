@@ -21,7 +21,7 @@ func NewOrderRepository(db *sql.DB, rdb *redis.Client) *OrderRepository {
 	return &OrderRepository{db: db, rdb: rdb}
 }
 
-func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addressID int64, items []*cart.CartItem) error {
+func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addressID int64, items []*cart.CartItem) (int64, float64, error) {
 	tx, errTx := r.db.BeginTx(ctx, nil)
 	defer func(tx *sql.Tx) {
 		errRollback := tx.Rollback()
@@ -31,7 +31,7 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 	}(tx)
 
 	if errTx != nil {
-		return errTx
+		return -1, -1, errTx
 	}
 
 	var sum float64
@@ -51,10 +51,10 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 
 	if errRowItemsDB != nil {
 		if errors.Is(errRowItemsDB, sql.ErrNoRows) {
-			return sql.ErrNoRows
+			return -1, -1, sql.ErrNoRows
 		}
 
-		return errRowItemsDB
+		return -1, -1, errRowItemsDB
 	}
 
 	for rowItemsDB.Next() {
@@ -63,7 +63,7 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 			&itemDB.Price, &itemDB.Quantity)
 
 		if errScan != nil {
-			return errScan
+			return -1, -1, errScan
 		}
 
 		products = append(products, itemDB)
@@ -72,34 +72,34 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 	}
 
 	if len(products) != len(itemsMap) {
-		return errors.New("some products are unavailable")
+		return -1, -1, errors.New("some products are unavailable")
 	}
 
 	errOrderCreate := tx.QueryRowContext(ctx, "INSERT INTO orders (profile_id, address_id, amount) VALUES ($1, $2, $3) RETURNING id", profileID, addressID, sum).Scan(&orderID)
 
 	if errOrderCreate != nil {
-		return errOrderCreate
+		return -1, -1, errOrderCreate
 	}
 
 	for _, p := range products {
 		_, errInsertOrderProduct := tx.ExecContext(ctx, "INSERT INTO orders_products (order_id, product_id, product_price, quantity) VALUES ($1, $2, $3, $4)", orderID, p.ID, p.Price, itemsMap[p.ID])
 
 		if errInsertOrderProduct != nil {
-			return errInsertOrderProduct
+			return -1, -1, errInsertOrderProduct
 		}
 	}
 
 	errCommit := tx.Commit()
 
 	if errCommit != nil {
-		return errCommit
+		return -1, -1, errCommit
 	}
 
 	errRedisDel := r.rdb.Del(ctx, "cart:"+strconv.FormatInt(profileID, 10)).Err()
 
 	if errRedisDel != nil {
-		return errRedisDel
+		return -1, -1, errRedisDel
 	}
 
-	return nil
+	return orderID, sum, nil
 }
