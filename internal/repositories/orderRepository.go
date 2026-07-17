@@ -103,3 +103,13 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 
 	return orderID, sum, nil
 }
+
+func (r *OrderRepository) PaymentStatus(orderID int64, status string) error {
+	_, errExec := r.db.Exec("UPDATE orders SET status = $1 WHERE id = $2", status, orderID)
+
+	if errExec != nil {
+		return errExec
+	}
+
+	return nil
+}
