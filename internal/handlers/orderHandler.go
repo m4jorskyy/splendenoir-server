@@ -84,15 +84,15 @@ func (s *OrderHandler) PaymentConfirmation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	var paymentIntent stripe.PaymentIntent
+	errUnmarshall := json.Unmarshal(event.Data.Raw, &paymentIntent)
+	if errUnmarshall != nil {
+		http.Error(w, fmt.Sprintf("Error unmarshall: %s", errUnmarshall), http.StatusBadRequest)
+		return
+	}
+
 	switch event.Type {
 	case "payment_intent.succeeded":
-		var paymentIntent stripe.PaymentIntent
-		errUnmarshall := json.Unmarshal(event.Data.Raw, &paymentIntent)
-		if errUnmarshall != nil {
-			http.Error(w, fmt.Sprintf("Error unmarshall: %s", errUnmarshall), http.StatusBadRequest)
-			return
-		}
-
 		orderID, errConversion := strconv.ParseInt(paymentIntent.Metadata["orderID"], 10, 64)
 		if errConversion != nil {
 			http.Error(w, fmt.Sprintf("Error conversion: %s", errConversion), http.StatusInternalServerError)
@@ -107,9 +107,22 @@ func (s *OrderHandler) PaymentConfirmation(w http.ResponseWriter, r *http.Reques
 
 		w.WriteHeader(http.StatusOK)
 		break
+
 	case "payment_intent.payment_failed":
-		//TODO
-		w.WriteHeader(http.StatusBadRequest)
+		orderID, errConversion := strconv.ParseInt(paymentIntent.Metadata["orderID"], 10, 64)
+		if errConversion != nil {
+			http.Error(w, fmt.Sprintf("Error conversion: %s", errConversion), http.StatusInternalServerError)
+			return
+		}
+
+		errStatus := s.service.PaymentStatus(orderID, "FAILED")
+		if errStatus != nil {
+			http.Error(w, fmt.Sprintf("Error status: %s", errStatus), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		break
+
 	default:
 		w.WriteHeader(http.StatusOK)
 		return
