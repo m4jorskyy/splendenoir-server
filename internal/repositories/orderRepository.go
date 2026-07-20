@@ -8,6 +8,7 @@ import (
 	"splendenoir-server/internal/models/data/cart"
 	"strconv"
 
+	uuid2 "github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
@@ -20,6 +21,8 @@ type OrderRepository struct {
 func NewOrderRepository(db *sql.DB, rdb *redis.Client) *OrderRepository {
 	return &OrderRepository{db: db, rdb: rdb}
 }
+
+var ZeroRowsAffectedError = errors.New("0 rows affected")
 
 func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addressID int64, items []*cart.CartItem) (int64, float64, error) {
 	tx, errTx := r.db.BeginTx(ctx, nil)
@@ -89,6 +92,25 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 		}
 	}
 
+	uuid := uuid2.New()
+
+	result, errTransactionInsert := tx.Exec("INSERT INTO transactions (uuid, payment_intent_id, order_id, "+
+		"status) VALUES ($1,$2, $3, $4)", uuid, -1, orderID, "PENDING")
+
+	if errTransactionInsert != nil {
+		return -1, -1, errTransactionInsert
+	}
+
+	affected, errKeyAffected := result.RowsAffected()
+
+	if errKeyAffected != nil {
+		return -1, -1, errKeyAffected
+	}
+
+	if affected == 0 {
+		return -1, -1, ZeroRowsAffectedError
+	}
+
 	errCommit := tx.Commit()
 
 	if errCommit != nil {
@@ -105,10 +127,20 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 }
 
 func (r *OrderRepository) PaymentStatus(orderID int64, status string) error {
-	_, errExec := r.db.Exec("UPDATE orders SET status = $1 WHERE id = $2", status, orderID)
+	result, errExec := r.db.Exec("UPDATE orders SET status = $1 WHERE id = $2 AND STATUS = 'PENDING'", status, orderID)
 
 	if errExec != nil {
 		return errExec
+	}
+
+	affected, errKeyAffected := result.RowsAffected()
+
+	if errKeyAffected != nil {
+		return errKeyAffected
+	}
+
+	if affected == 0 {
+		return ZeroRowsAffectedError
 	}
 
 	return nil
