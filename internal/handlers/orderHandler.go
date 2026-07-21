@@ -2,24 +2,29 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"splendenoir-server/internal/models/data/order"
+	"splendenoir-server/internal/repositories"
 	"splendenoir-server/internal/services"
 	"strconv"
+	"sync"
 
 	"github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/webhook"
 )
 
 type OrderHandler struct {
-	service *services.OrderService
+	waitGroup *sync.WaitGroup
+	service   *services.OrderService
 }
 
-func NewOrderHandler(service *services.OrderService) *OrderHandler {
-	return &OrderHandler{service: service}
+func NewOrderHandler(waitGroup *sync.WaitGroup, service *services.OrderService) *OrderHandler {
+	return &OrderHandler{waitGroup: waitGroup, service: service}
 }
 
 func (s *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -101,9 +106,25 @@ func (s *OrderHandler) PaymentConfirmation(w http.ResponseWriter, r *http.Reques
 
 		errStatus := s.service.PaymentStatus(orderID, "SUCCESS")
 		if errStatus != nil {
+			if errors.Is(errStatus, repositories.ZeroRowsAffectedError) {
+				http.Error(w, "0 rows affected", http.StatusOK)
+				return
+			}
+
 			http.Error(w, fmt.Sprintf("Error status: %s", errStatus), http.StatusInternalServerError)
 			return
 		}
+
+		s.waitGroup.Add(1)
+		go func() {
+			defer s.waitGroup.Done()
+			errFulfillment := s.service.FulfillOrder(orderID)
+
+			if errFulfillment != nil {
+				slog.Error("Error fulfilling order", "err", errFulfillment)
+				return
+			}
+		}()
 
 		w.WriteHeader(http.StatusOK)
 		break
@@ -117,6 +138,11 @@ func (s *OrderHandler) PaymentConfirmation(w http.ResponseWriter, r *http.Reques
 
 		errStatus := s.service.PaymentStatus(orderID, "FAILED")
 		if errStatus != nil {
+			if errors.Is(errStatus, repositories.ZeroRowsAffectedError) {
+				http.Error(w, "0 rows affected", http.StatusOK)
+				return
+			}
+
 			http.Error(w, fmt.Sprintf("Error status: %s", errStatus), http.StatusInternalServerError)
 			return
 		}

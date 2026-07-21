@@ -11,6 +11,7 @@ import (
 	"splendenoir-server/internal/middleware"
 	"splendenoir-server/internal/repositories"
 	"splendenoir-server/internal/services"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -21,6 +22,8 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+
+	var waitGroup sync.WaitGroup
 
 	errEnv := godotenv.Load()
 	if errEnv != nil {
@@ -79,6 +82,10 @@ func main() {
 	cartSvc := services.NewCartService(cartRepo)
 	cartHandler := handlers.NewCartHandler(cartSvc)
 
+	orderRepo := repositories.NewOrderRepository(db, rdb)
+	orderSvc := services.NewOrderService(orderRepo)
+	orderHandler := handlers.NewOrderHandler(&waitGroup, orderSvc)
+
 	mux.HandleFunc("POST /api/register/", userHandler.RegisterUser)
 	mux.HandleFunc("POST /api/login/", userHandler.LoginUser)
 
@@ -113,8 +120,9 @@ func main() {
 	defer cancel()
 
 	errShutdown := srv.Shutdown(ctx)
-
 	if errShutdown != nil {
 		panic(errShutdown)
 	}
+
+	waitGroup.Wait()
 }

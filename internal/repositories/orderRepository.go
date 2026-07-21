@@ -78,7 +78,7 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 		return -1, -1, errors.New("some products are unavailable")
 	}
 
-	errOrderCreate := tx.QueryRowContext(ctx, "INSERT INTO orders (profile_id, address_id, amount) VALUES ($1, $2, $3) RETURNING id", profileID, addressID, sum).Scan(&orderID)
+	errOrderCreate := tx.QueryRowContext(ctx, "INSERT INTO orders (profile_id, address_id, amount, status) VALUES ($1, $2, $3, $4) RETURNING id", profileID, addressID, sum, "PENDING").Scan(&orderID)
 
 	if errOrderCreate != nil {
 		return -1, -1, errOrderCreate
@@ -143,5 +143,9 @@ func (r *OrderRepository) PaymentStatus(orderID int64, status string) error {
 		return ZeroRowsAffectedError
 	}
 
+	return nil
+}
+
+func (r *OrderRepository) FulfillOrder(orderID int64) error {
 	return nil
 }

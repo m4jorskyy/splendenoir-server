@@ -13,6 +13,7 @@ import (
 type OrderRepository interface {
 	CreateOrder(ctx context.Context, profileID int64, addressID int64, items []*cart.CartItem) (int64, float64, error)
 	PaymentStatus(orderID int64, status string) error
+	FulfillOrder(orderID int64) error
 }
 
 type OrderService struct {
@@ -48,6 +49,16 @@ func (r *OrderService) PaymentStatus(orderID int64, status string) error {
 
 	if errStatus != nil {
 		return errStatus
+	}
+
+	return nil
+}
+
+func (r *OrderService) FulfillOrder(orderID int64) error {
+	errFulfill := r.repository.FulfillOrder(orderID)
+
+	if errFulfill != nil {
+		return errFulfill
 	}
 
 	return nil
