@@ -11,6 +11,8 @@ import (
 	"splendenoir-server/internal/middleware"
 	"splendenoir-server/internal/repositories"
 	"splendenoir-server/internal/services"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,6 +71,37 @@ func main() {
 		panic(errRdbPing)
 	}
 
+	pubsub := rdb.Subscribe(ctx, "__keyevent@0__:expired")
+
+	go func() {
+		defer func(pubsub *redis.PubSub) {
+			err := pubsub.Close()
+			if err != nil {
+				return
+			}
+		}(pubsub)
+
+		channel := pubsub.Channel()
+
+		for message := range channel {
+			slog.Info("Expired key", "key", message.Payload)
+
+			stringOrderID, errCut := strings.CutPrefix(message.Payload, "order_pending:")
+
+			if errCut == false {
+				slog.Error("Error cutting prefix")
+				continue
+			}
+
+			orderID, errParse := strconv.ParseInt(stringOrderID, 10, 64)
+
+			if errParse != nil {
+				slog.Error("Error parsing orderID")
+				continue
+			}
+		}
+	}()
+
 	mux := http.NewServeMux()
 	userRepo := repositories.NewUserRepository(db)
 	userSvc := services.NewUserService(os.Getenv("JWT_SECRET"), userRepo)
@@ -107,7 +140,6 @@ func main() {
 	signal.Notify(quit, os.Interrupt)
 
 	go func() {
-
 		errHTTP := srv.ListenAndServe()
 		if errHTTP != nil {
 			return

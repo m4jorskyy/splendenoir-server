@@ -7,6 +7,7 @@ import (
 	"splendenoir-server/internal/models/data"
 	"splendenoir-server/internal/models/data/cart"
 	"strconv"
+	"time"
 
 	uuid2 "github.com/google/uuid"
 	"github.com/lib/pq"
@@ -50,7 +51,7 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 	}
 
 	rowItemsDB, errRowItemsDB := tx.QueryContext(ctx,
-		"SELECT id, name, material, fineness, length, width, price, quantity FROM products WHERE id = ANY($1) AND deleted_at IS NULL", pq.Array(itemsID))
+		"SELECT id, name, material, fineness, length, width, price, quantity FROM products WHERE id = ANY($1) AND deleted_at IS NULL FOR UPDATE", pq.Array(itemsID))
 
 	if errRowItemsDB != nil {
 		if errors.Is(errRowItemsDB, sql.ErrNoRows) {
@@ -69,9 +70,19 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 			return -1, -1, errScan
 		}
 
+		if itemDB.Quantity-itemsMap[itemDB.ID] < 0 {
+			return -1, -1, errors.New("invalid quantity")
+		}
+
 		products = append(products, itemDB)
 
 		sum += itemDB.Price * float64(itemsMap[itemDB.ID])
+
+		_, errQuantityUpdate := tx.ExecContext(ctx, "UPDATE products SET quantity = quantity - $1 WHERE id = $2", itemsMap[itemDB.ID], itemDB.ID)
+
+		if errQuantityUpdate != nil {
+			return -1, -1, errQuantityUpdate
+		}
 	}
 
 	if len(products) != len(itemsMap) {
@@ -121,6 +132,12 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, profileID int64, addr
 
 	if errRedisDel != nil {
 		return -1, -1, errRedisDel
+	}
+
+	errRedisPending := r.rdb.Set(ctx, "order_pending:"+strconv.FormatInt(orderID, 10), -15, 15*time.Minute).Err()
+
+	if errRedisPending != nil {
+		return -1, -1, errRedisPending
 	}
 
 	return orderID, sum, nil
