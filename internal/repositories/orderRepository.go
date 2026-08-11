@@ -166,3 +166,50 @@ func (r *OrderRepository) PaymentStatus(orderID int64, status string) error {
 func (r *OrderRepository) FulfillOrder(orderID int64) error {
 	return nil
 }
+
+func (r *OrderRepository) CancelOrder(ctx context.Context, orderID int64) error {
+	tx, errTx := r.db.BeginTx(ctx, nil)
+	defer func(tx *sql.Tx) {
+		errRollback := tx.Rollback()
+		if errRollback != nil {
+			return
+		}
+	}(tx)
+
+	if errTx != nil {
+		return errTx
+	}
+
+	var returnedOrderID int64
+	itemsToCancel := make(map[int64]int)
+
+	errCheckStatus := tx.QueryRowContext(ctx, "SELECT orders.id FROM orders WHERE orders.status = 'PENDING' AND orders.id = $1 FOR UPDATE", orderID).Scan(&returnedOrderID)
+
+	if errCheckStatus != nil {
+		if errors.Is(errCheckStatus, sql.ErrNoRows) {
+			return ZeroRowsAffectedError
+		}
+
+		return errCheckStatus
+	}
+
+	rowsToCancel, errRowsToCancel := tx.QueryContext(ctx, "SELECT product_id, quantity FROM orders_products WHERE order_id = $1", orderID)
+
+	if errRowsToCancel != nil {
+		if errors.Is(errRowsToCancel, sql.ErrNoRows) {
+			return ZeroRowsAffectedError
+		}
+
+		return errRowsToCancel
+	}
+
+	for rowsToCancel.Next() {
+		var productID int64
+		var quantity int
+		errScan := rowsToCancel.Scan(&productID, &quantity)
+		if errScan != nil {
+			return errScan
+		}
+		itemsToCancel[productID] = quantity
+	}
+}
