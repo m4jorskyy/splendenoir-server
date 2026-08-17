@@ -14,6 +14,7 @@ type OrderRepository interface {
 	CreateOrder(ctx context.Context, profileID int64, addressID int64, items []*cart.CartItem) (int64, float64, error)
 	PaymentStatus(orderID int64, status string) error
 	FulfillOrder(orderID int64) error
+	CancelOrder(ctx context.Context, orderID int64) error
 }
 
 type OrderService struct {
@@ -59,6 +60,16 @@ func (r *OrderService) FulfillOrder(orderID int64) error {
 
 	if errFulfill != nil {
 		return errFulfill
+	}
+
+	return nil
+}
+
+func (r *OrderService) CancelOrder(ctx context.Context, orderID int64) error {
+	errCancelOrder := r.repository.CancelOrder(ctx, orderID)
+
+	if errCancelOrder != nil {
+		return errCancelOrder
 	}
 
 	return nil

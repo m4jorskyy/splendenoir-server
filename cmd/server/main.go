@@ -71,37 +71,6 @@ func main() {
 		panic(errRdbPing)
 	}
 
-	pubsub := rdb.Subscribe(ctx, "__keyevent@0__:expired")
-
-	go func() {
-		defer func(pubsub *redis.PubSub) {
-			err := pubsub.Close()
-			if err != nil {
-				return
-			}
-		}(pubsub)
-
-		channel := pubsub.Channel()
-
-		for message := range channel {
-			slog.Info("Expired key", "key", message.Payload)
-
-			stringOrderID, errCut := strings.CutPrefix(message.Payload, "order_pending:")
-
-			if errCut == false {
-				slog.Error("Error cutting prefix")
-				continue
-			}
-
-			orderID, errParse := strconv.ParseInt(stringOrderID, 10, 64)
-
-			if errParse != nil {
-				slog.Error("Error parsing orderID")
-				continue
-			}
-		}
-	}()
-
 	mux := http.NewServeMux()
 	userRepo := repositories.NewUserRepository(db)
 	userSvc := services.NewUserService(os.Getenv("JWT_SECRET"), userRepo)
@@ -135,6 +104,50 @@ func main() {
 	}
 
 	slog.Info("Server started", "port", ":"+os.Getenv("SERVER_PORT"))
+
+	pubsub := rdb.Subscribe(ctx, "__keyevent@0__:expired")
+
+	go func() {
+		defer func(pubsub *redis.PubSub) {
+			err := pubsub.Close()
+			if err != nil {
+				return
+			}
+		}(pubsub)
+
+		channel := pubsub.Channel()
+
+		for message := range channel {
+			waitGroup.Add(1)
+			func() {
+				defer waitGroup.Done()
+				slog.Info("Expired key", "key", message.Payload)
+
+				stringOrderID, errCut := strings.CutPrefix(message.Payload, "order_pending:")
+
+				if errCut == false {
+					slog.Error("Error cutting prefix")
+					return
+				}
+
+				orderID, errParse := strconv.ParseInt(stringOrderID, 10, 64)
+
+				if errParse != nil {
+					slog.Error(errParse.Error())
+					return
+				}
+
+				errOrderCancel := orderSvc.CancelOrder(ctx, orderID)
+
+				if errOrderCancel != nil {
+					slog.Error(errOrderCancel.Error())
+					return
+				}
+
+				slog.Info("Order cancelled successfully")
+			}()
+		}
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
