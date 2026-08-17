@@ -212,4 +212,28 @@ func (r *OrderRepository) CancelOrder(ctx context.Context, orderID int64) error 
 		}
 		itemsToCancel[productID] = quantity
 	}
+
+	for id, quantity := range itemsToCancel {
+		_, errItemToCancel := tx.ExecContext(ctx, "UPDATE products SET quantity = quantity + $1 WHERE id = $2",
+			quantity,
+			id)
+
+		if errItemToCancel != nil {
+			return errItemToCancel
+		}
+	}
+
+	_, errStatusChange := tx.ExecContext(ctx, "UPDATE orders SET status = 'CANCELLED' WHERE id = $1", orderID)
+
+	if errStatusChange != nil {
+		return errStatusChange
+	}
+
+	errCommit := tx.Commit()
+
+	if errCommit != nil {
+		return errCommit
+	}
+
+	return nil
 }
